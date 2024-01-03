@@ -1,24 +1,11 @@
 """Main module that is used to test package"""
 
-# pylint: disable=unused-import
 # import dependencies
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# import sklearn metrics and utilities
-# from sklearn.metrics import r2_score
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
-
 # import sklearn models
-from sklearn.neural_network import MLPRegressor
 from sklearn.linear_model import LinearRegression
-from sklearn.neighbors import KNeighborsRegressor
-from sklearn.svm import SVR
-from sklearn import tree
-
-
 from sklearn.metrics import r2_score
 
 # import dataset
@@ -27,13 +14,17 @@ df = pd.read_csv('datasets/XRP-USD.csv')
 # convert date column to date format
 df['Date'] = pd.to_datetime(df['Date'])
 
+# Shift data by one day to use previous day's values for training
+df[['Open', 'High', 'Low']] = df[['Open', 'High', 'Low']].shift(0)
+
+# drop rows with NaN values resulting from the shift
+df = df.dropna()
+
 # split dataset into training and test subsets
 train_mask = (df['Date'] >= '2022-8-10') & (df['Date'] <= '2022-12-20')
 train_df = df.loc[train_mask]
 test_mask = (df['Date'] >= '2022-12-21') & (df['Date'] <= '2023-2-8')
 test_df = df.loc[test_mask]
-
-# print(test_mask)
 
 # split each of training and test subsets into inputs (X) and outputs (Y)
 X_train = train_df[['Open', 'High', 'Low']]
@@ -43,22 +34,8 @@ X_test = test_df[['Open', 'High', 'Low']]
 y_test = test_df['Close']
 date_test = test_df['Date']
 
-# convert dataframes to numpy objects
-X_train = X_train.to_numpy()
-y_train = y_train.to_numpy()
-X_test = X_test.to_numpy()
-y_test = y_test.to_numpy()
-
-
-
-# choose a model to train
-# model = MLPRegressor(max_iter=50000, hidden_layer_sizes=(4, 4, 4, ))
-# model = MLPRegressor(random_state=1, max_iter=500)
-# model = tree.DecisionTreeRegressor()
+# create model to train
 model = LinearRegression()
-# model = KNeighborsRegressor(n_neighbors=2)
-# model = make_pipeline(StandardScaler(), SVR(C=100.0, coef0=1.0, kernel='poly', max_iter=50000))
-
 
 # fit data into model
 model.fit(X_train, y_train)
