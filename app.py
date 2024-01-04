@@ -7,6 +7,7 @@ from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 import yfinance as yf
 from datetime import datetime, timedelta
+from pathlib import Path
 
 app = Flask(__name__)
 
@@ -17,7 +18,9 @@ datasets_dir = 'datasets'  # Update this with the actual directory path
 models_dir = 'models'  # Update this with the actual directory path
 
 def load_dataset(dataset_name):
-    dataset_path = os.path.join(datasets_dir, f'{dataset_name}.csv')
+    THIS_FOLDER = Path(__file__).parent.resolve()
+    dataset_path = THIS_FOLDER /  f'{datasets_dir}/{dataset_name}.csv'
+
     df = pd.read_csv(dataset_path)
     df['Date'] = pd.to_datetime(df['Date'])
     df[['Open', 'High', 'Low']] = df[['Open', 'High', 'Low']].shift(1)
@@ -25,14 +28,18 @@ def load_dataset(dataset_name):
     return df
 
 def ensure_models_directory():
-    if not os.path.exists(models_dir):
-        os.makedirs(models_dir)
+    THIS_FOLDER = Path(__file__).parent.resolve()
+    models = THIS_FOLDER /  f'{models_dir}'
+    if not os.path.exists(models):
+        os.makedirs(models)
 
 def load_or_train_model(dataset_name, test_size=0.25, random_state=42):
     global model
 
     # Check if the model exists for the dataset
-    model_filename = os.path.join(models_dir, f'{dataset_name}.joblib')
+    THIS_FOLDER = Path(__file__).parent.resolve()
+    model_filename = THIS_FOLDER /  f'{models_dir}/{dataset_name}.joblib'
+
     if os.path.exists(model_filename):
         # Load the existing model
         model = joblib.load(model_filename)
@@ -56,6 +63,11 @@ def fetch_yahoo_finance_data(ticker_symbol, start_date, end_date):
     # Fetch historical stock data from Yahoo Finance API
     stock_data = yf.download(ticker_symbol, start=start_date, end=end_date)
     return stock_data.reset_index()
+
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({'response': 'Crypto API'})
+
 
 @app.route('/train', methods=['POST'])
 def train_model():
@@ -146,14 +158,14 @@ def fetch_data():
 
         # Save the fetched data to a CSV file
         ensure_models_directory()
-        dataset_filename = os.path.join(datasets_dir, f'{ticker_symbol}.csv')
+        THIS_FOLDER = Path(__file__).parent.resolve()
+        dataset_filename = THIS_FOLDER /  f'{datasets_dir}/{ticker_symbol}.csv'
         yahoo_data.to_csv(dataset_filename, index=False)
 
         return jsonify({'message': f'Dataset fetched and saved successfully for {ticker_symbol}'})
 
     except Exception as e:
         return jsonify({'error': str(e)})
-    
 
 @app.route('/closing_prices_chart_data', methods=['GET'])
 def closing_prices_chart_data():
