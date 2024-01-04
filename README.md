@@ -34,9 +34,9 @@ pip install -r requirements.txt
 ```
 
 
-### Step 4: Run your script
+### Step 4: Run Your Server
 
 After installing requirements, modify your script and run it
 ```
-python main.py
+python app.py
 ```
