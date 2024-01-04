@@ -14,6 +14,8 @@ app = Flask(__name__)
 # Initialize an empty model variable
 model = None
 
+
+day_offset = 2
 datasets_dir = 'datasets'  # Update this with the actual directory path
 models_dir = 'models'  # Update this with the actual directory path
 
@@ -23,7 +25,7 @@ def load_dataset(dataset_name):
 
     df = pd.read_csv(dataset_path)
     df['Date'] = pd.to_datetime(df['Date'])
-    df[['Open', 'High', 'Low']] = df[['Open', 'High', 'Low']].shift(1)
+    df[['Open', 'High', 'Low']] = df[['Open', 'High', 'Low']].shift(day_offset)
     df = df.dropna()
     return df
 
@@ -151,7 +153,7 @@ def fetch_data():
 
         # Calculate start and end dates for the latest year
         end_date = datetime.now().strftime('%Y-%m-%d')
-        start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=730)).strftime('%Y-%m-%d')
 
         # Fetch historical stock data from Yahoo Finance
         yahoo_data = fetch_yahoo_finance_data(ticker_symbol, start_date, end_date)
@@ -199,6 +201,37 @@ def closing_prices_chart_data():
         }
 
         return jsonify(chart_data)
+
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    
+
+@app.route('/last_day_data', methods=['POST'])
+def last_day_data():
+    try:
+        # Get data from the POST request
+        data = request.json
+
+        # Get the ticker symbol from the request
+        ticker_symbol = data.get('ticker_symbol')
+        if not ticker_symbol:
+            return jsonify({'error': 'Ticker symbol is required'})
+
+        # Fetch intraday stock data from Yahoo Finance for the past 24 hours
+        intraday_data = yf.download(ticker_symbol, period='1d', interval='1m')
+
+        # Extract the relevant columns (Open, High, Low) from the last row
+        last_row = intraday_data.iloc[-1]
+        open_price = last_row['Open']
+        high_price = last_row['High']
+        low_price = last_row['Low']
+
+        return jsonify({
+            'ticker_symbol': ticker_symbol,
+            'open_price': open_price,
+            'high_price': high_price,
+            'low_price': low_price
+        })
 
     except Exception as e:
         return jsonify({'error': str(e)})
