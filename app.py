@@ -3,7 +3,7 @@ import os
 import joblib
 import pandas as pd
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, root_mean_squared_error
 from sklearn.model_selection import train_test_split
 import yfinance as yf
 from datetime import datetime, timedelta
@@ -14,14 +14,14 @@ app = Flask(__name__)
 # Initialize an empty model variable
 model = None
 
-
 day_offset = 2
 datasets_dir = 'datasets'  # Update this with the actual directory path
 models_dir = 'models'  # Update this with the actual directory path
 
+
 def load_dataset(dataset_name):
-    THIS_FOLDER = Path(__file__).parent.resolve()
-    dataset_path = THIS_FOLDER /  f'{datasets_dir}/{dataset_name}.csv'
+    folder_path = Path(__file__).parent.resolve()
+    dataset_path = folder_path / f'{datasets_dir}/{dataset_name}.csv'
 
     df = pd.read_csv(dataset_path)
     df['Date'] = pd.to_datetime(df['Date'])
@@ -29,18 +29,20 @@ def load_dataset(dataset_name):
     df = df.dropna()
     return df
 
+
 def ensure_models_directory():
-    THIS_FOLDER = Path(__file__).parent.resolve()
-    models = THIS_FOLDER /  f'{models_dir}'
+    folder_path = Path(__file__).parent.resolve()
+    models = folder_path / f'{models_dir}'
     if not os.path.exists(models):
         os.makedirs(models)
+
 
 def load_or_train_model(dataset_name, test_size=0.25, random_state=42):
     global model
 
     # Check if the model exists for the dataset
-    THIS_FOLDER = Path(__file__).parent.resolve()
-    model_filename = THIS_FOLDER /  f'{models_dir}/{dataset_name}.joblib'
+    folder_path = Path(__file__).parent.resolve()
+    model_filename = folder_path / f'{models_dir}/{dataset_name}.joblib'
 
     if os.path.exists(model_filename):
         # Load the existing model
@@ -61,10 +63,12 @@ def load_or_train_model(dataset_name, test_size=0.25, random_state=42):
         # Save the trained model
         joblib.dump(model, model_filename)
 
+
 def fetch_yahoo_finance_data(ticker_symbol, start_date, end_date):
     # Fetch historical stock data from Yahoo Finance API
     stock_data = yf.download(ticker_symbol, start=start_date, end=end_date)
     return stock_data.reset_index()
+
 
 @app.route('/', methods=['GET'])
 def index():
@@ -111,6 +115,7 @@ def train_model():
     except Exception as e:
         return jsonify({'error': str(e)})
 
+
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
@@ -140,6 +145,7 @@ def predict():
     except Exception as e:
         return jsonify({'error': str(e)})
 
+
 @app.route('/fetch_data', methods=['POST'])
 def fetch_data():
     try:
@@ -160,14 +166,15 @@ def fetch_data():
 
         # Save the fetched data to a CSV file
         ensure_models_directory()
-        THIS_FOLDER = Path(__file__).parent.resolve()
-        dataset_filename = THIS_FOLDER /  f'{datasets_dir}/{ticker_symbol}.csv'
+        folder_path = Path(__file__).parent.resolve()
+        dataset_filename = folder_path / f'{datasets_dir}/{ticker_symbol}.csv'
         yahoo_data.to_csv(dataset_filename, index=False)
 
         return jsonify({'message': f'Dataset fetched and saved successfully for {ticker_symbol}'})
 
     except Exception as e:
         return jsonify({'error': str(e)})
+
 
 @app.route('/closing_prices_chart_data', methods=['GET'])
 def closing_prices_chart_data():
@@ -204,7 +211,7 @@ def closing_prices_chart_data():
 
     except Exception as e:
         return jsonify({'error': str(e)})
-    
+
 
 @app.route('/last_day_data', methods=['POST'])
 def last_day_data():
@@ -235,6 +242,43 @@ def last_day_data():
 
     except Exception as e:
         return jsonify({'error': str(e)})
+
+
+@app.route('/scores', methods=['GET'])
+def get_scores(test_size=0.25, random_state=42):
+    try:
+        # Get the dataset name from the request
+        dataset_name = request.args.get('dataset_name')
+        if not dataset_name:
+            return jsonify({'error': 'Dataset name is required'})
+
+        # Ensure the 'models' directory exists
+        ensure_models_directory()
+
+        # Load or train the model for the specified dataset
+        load_or_train_model(dataset_name)
+
+        # prepare dataset
+        df = load_dataset(dataset_name)
+        X = df[['Open', 'High', 'Low']]
+        y = df['Close']
+
+        # Split the dataset into training and testing sets
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+
+        y_pred = model.predict(X_test)
+
+        r2_test_score = r2_score(y_test, y_pred)
+        rms_test_error = root_mean_squared_error(y_test, y_pred)
+
+        return jsonify({
+            'r2_score': r2_test_score,
+            'rms_error': rms_test_error,
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
 
 if __name__ == '__main__':
     app.run(debug=True)
