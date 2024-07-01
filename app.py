@@ -14,7 +14,7 @@ app = Flask(__name__)
 # Initialize an empty model variable
 model = None
 
-day_offset = 2
+day_offset = 7
 datasets_dir = 'datasets'  # Update this with the actual directory path
 models_dir = 'models'  # Update this with the actual directory path
 
@@ -142,14 +142,47 @@ def calculate_scores(dataset_name, test_size=0.25, random_state=42):
         rms_test_error = root_mean_squared_error(y_test, y_pred)
         mae_test_error = mean_absolute_error(y_test, y_pred)
 
-        return jsonify({
+        return {
             'r2_score': r2_test_score,
             'rms_error': rms_test_error,
             'mae_error': mae_test_error,
-        })
+        }
     except Exception as e:
         return jsonify({'error': str(e)})
 
+
+def make_prediction(dataset_name, days=1):
+    # Load or train the model for the specified dataset
+    load_or_train_model(dataset_name)
+
+    folder_path = Path(__file__).parent.resolve()
+    dataset_path = folder_path / datasets_dir / f'{dataset_name}.csv'
+
+    df = pd.read_csv(dataset_path)
+    df['Date'] = pd.to_datetime(df['Date'])
+
+    # Shift the dataframe by 'days' from the end
+    shifted_df = df.shift(days)
+
+    # Get the last row of the shifted dataframe
+    last_row = shifted_df.iloc[-1]
+
+    # Extract Open, High, Low from the last row
+    open_price = last_row['Open']
+    high_price = last_row['High']
+    low_price = last_row['Low']
+
+    # Prepare the data for prediction
+    new_data = [[open_price, high_price, low_price]]
+
+    prediction = model.predict(new_data)
+
+    return {
+        'prediction': prediction[0],
+        'Open': open_price,
+        'High': high_price,
+        'Low': low_price,
+    }
 
 
 @app.route('/', methods=['GET'])
@@ -187,21 +220,8 @@ def predict():
         if not dataset_name:
             return jsonify({'error': 'Dataset name is required'})
 
-        # Load or train the model for the specified dataset
-        load_or_train_model(dataset_name)
-
-        # Prepare the data for prediction
-        new_data = [[data['Open'], data['High'], data['Low']]]
-
-        # Make a prediction using the loaded or trained model
-        if model is None:
-            return jsonify({'error': 'Model not loaded or trained'})
-
-        prediction = model.predict(new_data)
-
-        # Return the prediction as JSON
-        return jsonify({'prediction': prediction[0]})
-
+        return make_prediction(dataset_name)
+        
     except Exception as e:
         return jsonify({'error': str(e)})
 
@@ -307,7 +327,19 @@ def something():
     dataset_name = request.args.get('dataset_name')
     fetch_dataset(dataset_name)
     train_dataset(dataset_name)
-    return calculate_scores(dataset_name)
+
+    # return calculate_scores(dataset_name)
+    scores = calculate_scores(dataset_name)
+    prediction_1 = make_prediction(dataset_name, days=1)
+    prediction_3 = make_prediction(dataset_name, days=3)
+    prediction_7 = make_prediction(dataset_name, days=7)
+
+    return jsonify({
+        'scores': scores,
+        'day_1': prediction_1,
+        'day_3': prediction_3,
+        'day_7': prediction_7,
+    })
 
 
 
